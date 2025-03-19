@@ -5,12 +5,11 @@ class EffectifScreen extends StatefulWidget {
   const EffectifScreen({super.key});
 
   @override
-  _EffectifScreenState createState() => _EffectifScreenState();
+  EffectifScreenState createState() => EffectifScreenState();
 }
 
-class _EffectifScreenState extends State<EffectifScreen> {
+class EffectifScreenState extends State<EffectifScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-
   List<Map<String, dynamic>> _effectifs = [];
 
   @override
@@ -26,6 +25,12 @@ class _EffectifScreenState extends State<EffectifScreen> {
     });
   }
 
+  Future<void> _updateRepas(
+      String matricule, bool repasMidi, bool repasSoir) async {
+    await _dbHelper.updateRepas(matricule, repasMidi, repasSoir);
+    await _loadEffectifs();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,7 +39,8 @@ class _EffectifScreenState extends State<EffectifScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Liste des Effectifs', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text('Liste des Effectifs',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             SizedBox(height: 10),
             Expanded(
               child: ListView(
@@ -71,7 +77,8 @@ class _EffectifScreenState extends State<EffectifScreen> {
   Widget _buildTableRow(Map<String, dynamic> effectif) {
     return Container(
       padding: EdgeInsets.symmetric(vertical: 8.0),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(width: 1.0, color: Colors.grey))),
+      decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(width: 1.0, color: Colors.grey))),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -80,11 +87,17 @@ class _EffectifScreenState extends State<EffectifScreen> {
           _tableText(effectif['chambre'] ?? '', false),
           Checkbox(
             value: (effectif['midi'] ?? 0) == 1,
-            onChanged: (value) {},
+            onChanged: (value) => _updateRepas(
+                effectif['matricule']?.toString() ?? '',
+                value!,
+                (effectif['soir'] ?? 0) == 1),
           ),
           Checkbox(
             value: (effectif['soir'] ?? 0) == 1,
-            onChanged: (value) {},
+            onChanged: (value) => _updateRepas(
+                effectif['matricule']?.toString() ?? '',
+                (effectif['midi'] ?? 0) == 1,
+                value!),
           ),
           _tableText(effectif['commentaire'] ?? '', false),
         ],

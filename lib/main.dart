@@ -4,17 +4,16 @@ import 'screens/arrivee_depart.dart';
 import 'screens/historique.dart';
 import 'screens/main_courante.dart';
 import 'screens/categories.dart';
-import 'screens/database_helper.dart';
-import 'package:sqflite_common/sqlite_api.dart';
+/*import 'screens/database_helper.dart';
+import 'package:sqflite_common/sqlite_api.dart';*/
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:logger/logger.dart';
 
+final logger = Logger();
 void main() {
-  print("🚀 Lancement de l'application...");
-
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
-
-  print("📂 Base de données initialisée !");
+  logger.d("Ceci est un message de debug");
 }
 
 class MyApp extends StatelessWidget {
@@ -37,6 +36,7 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
   _HomeScreenState createState() => _HomeScreenState();
 }
 
@@ -67,11 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           items: const <BottomNavigationBarItem>[
-            BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Effectifs'),
-            BottomNavigationBarItem(icon: Icon(Icons.login), label: 'Arrivées/Départs'),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Historique'),
-            BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Main Courante'),
-            BottomNavigationBarItem(icon: Icon(Icons.category), label: 'Catégories'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.people), label: 'Effectifs'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.login), label: 'Arrivées/Départs'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.history), label: 'Historique'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.list), label: 'Main Courante'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.category), label: 'Catégories'),
           ],
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,

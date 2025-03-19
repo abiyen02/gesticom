@@ -4,17 +4,17 @@ class HistoriqueScreen extends StatefulWidget {
   const HistoriqueScreen({super.key});
 
   @override
-  _HistoriqueScreenState createState() => _HistoriqueScreenState();
+  HistoriqueScreenState createState() => HistoriqueScreenState();
 }
 
-class _HistoriqueScreenState extends State<HistoriqueScreen> {
-  // Liste des produits suivis
-  final List<String> produits = ["Savon", "Dentifrice", "Brosse", "Papier toilette"];
-
-  // Stocke l'historique des clients et des produits pris
+class HistoriqueScreenState extends State<HistoriqueScreen> {
+  final List<String> produits = [
+    "Savon",
+    "Dentifrice",
+    "Brosse",
+    "Papier toilette"
+  ];
   final List<Map<String, dynamic>> historique = [];
-
-  // Stocke le total des produits sortis
   final Map<String, int> totalProduits = {
     "Savon": 0,
     "Dentifrice": 0,
@@ -29,14 +29,13 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
   void ajouterHistorique() {
     if (_nomController.text.isNotEmpty && produitSelectionne != null) {
       setState(() {
-        // Ajouter à l'historique
         historique.add({
           "nom": _nomController.text,
           "produit": produitSelectionne,
           "quantite": quantite,
         });
-        // Mettre à jour le total
-        totalProduits[produitSelectionne!] = (totalProduits[produitSelectionne!] ?? 0) + quantite;
+        totalProduits[produitSelectionne!] =
+            (totalProduits[produitSelectionne!] ?? 0) + quantite;
         _nomController.clear();
         produitSelectionne = null;
         quantite = 1;
@@ -65,7 +64,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
                   value: produitSelectionne,
                   onChanged: (value) {
                     setState(() {
-                      produitSelectionne = value;
+                      produitSelectionne = value!;
                     });
                   },
                   items: produits.map((String produit) {
@@ -73,51 +72,6 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
                       value: produit,
                       child: Text(produit),
                     );
-                  }).toList(),
-                ),
-                SizedBox(width: 10),
-                DropdownButton<int>(
-                  value: quantite,
-                  onChanged: (value) {
-                    setState(() {
-                      quantite = value!;
-                    });
-                  },
-                  items: List.generate(10, (index) => index + 1)
-                      .map((int q) => DropdownMenuItem<int>(
-                    value: q,
-                    child: Text(q.toString()),
-                  ))
-                      .toList(),
-                ),
-                SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: ajouterHistorique,
-                  child: Text("Ajouter"),
-                )
-              ],
-            ),
-          ),
-          Divider(),
-          Expanded(
-            child: ListView.builder(
-              itemCount: historique.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text("${historique[index]["nom"]} a pris ${historique[index]["quantite"]} ${historique[index]["produit"]}"),
-                );
-              },
-            ),
-          ),
-          Divider(),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              children: [
-                Text("Total des produits sortis", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Column(
-                  children: produits.map((produit) {
-                    return Text("$produit : ${totalProduits[produit]} unités");
                   }).toList(),
                 ),
               ],

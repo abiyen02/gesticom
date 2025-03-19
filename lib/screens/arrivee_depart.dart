@@ -5,10 +5,10 @@ class ArriveeDepartScreen extends StatefulWidget {
   const ArriveeDepartScreen({super.key});
 
   @override
-  _ArriveeDepartScreenState createState() => _ArriveeDepartScreenState();
+  ArriveeDepartScreenState createState() => ArriveeDepartScreenState();
 }
 
-class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
+class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   List<Map<String, dynamic>> arrives = [];
   List<Map<String, dynamic>> departs = [];
@@ -25,7 +25,7 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
 
   Future<void> _loadData() async {
     try {
-      print("🔄 Chargement des données...");
+      debugPrint("🔄 Chargement des données...");
       final arrivesData = await _dbHelper.getArrivees();
       final departsData = await _dbHelper.getDeparts();
 
@@ -33,9 +33,10 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
         arrives = arrivesData;
         departs = departsData;
       });
-      print("✅ Données mises à jour : Arrivées = \${arrives.length}, Départs = \${departs.length}");
+      debugPrint(
+          "✅ Données mises à jour : Arrivées = \${arrives.length}, Départs = \${departs.length}");
     } catch (e) {
-      print("❌ Erreur lors du chargement des données : \$e");
+      debugPrint("❌ Erreur lors du chargement des données : \$e");
     }
   }
 
@@ -54,50 +55,49 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
             children: [
               TextField(
                 controller: matriculeController,
-                decoration: InputDecoration(labelText: "Matricule"),
+                decoration: const InputDecoration(labelText: "Matricule"),
               ),
               if (isArrivee)
                 TextField(
                   controller: nomController,
-                  decoration: InputDecoration(labelText: "Nom"),
+                  decoration: const InputDecoration(labelText: "Nom"),
                 ),
               if (isArrivee)
                 TextField(
                   controller: chambreController,
-                  decoration: InputDecoration(labelText: "Chambre"),
+                  decoration: const InputDecoration(labelText: "Chambre"),
                 ),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text("Annuler"),
+              child: const Text("Annuler"),
             ),
             ElevatedButton(
               onPressed: () async {
                 if (matriculeController.text.isNotEmpty) {
-                  print("🔹 Bouton Ajouter cliqué");
+                  debugPrint("🔹 Bouton Ajouter cliqué");
                   try {
                     if (isArrivee) {
-                      print("🔹 Ajout d'une arrivée : \${matriculeController.text}, \${nomController.text}, \${chambreController.text}");
                       await _dbHelper.addArrivee(
                         matriculeController.text,
                         nomController.text,
                         chambreController.text,
                       );
                     } else {
-                      print("🔹 Ajout d'un départ : \${matriculeController.text}");
                       await _dbHelper.addDepart(matriculeController.text);
                     }
                     await _loadData();
+                    if (!context.mounted) return;
                     Navigator.pop(context);
-                    print("✅ Enregistrement réussi !");
+                    debugPrint("✅ Enregistrement réussi !");
                   } catch (e) {
-                    print("❌ Erreur lors de l'ajout : \$e");
+                    debugPrint("❌ Erreur lors de l'ajout : \$e");
                   }
                 }
               },
-              child: Text("Ajouter"),
+              child: const Text("Ajouter"),
             ),
           ],
         );
@@ -108,21 +108,25 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Arrivées & Départs")),
+      appBar: AppBar(title: const Text("Arrivées & Départs")),
       body: Row(
         children: [
           Expanded(
             child: Column(
               children: [
-                Text("Arrivées", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text("Arrivées",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Expanded(
                   child: ListView.builder(
                     itemCount: arrives.length,
                     itemBuilder: (context, index) {
-                      final item = arrives[index];
                       return ListTile(
-                        title: Text("Nom: \${item['nom']} - Matricule: \${item['matricule']}", style: TextStyle(fontSize: 16)),
-                        subtitle: Text("Chambre: \${item['chambre']}", style: TextStyle(fontSize: 14)),
+                        title: Text(
+                            "Nom: \${item['nom']} - Matricule: \${item['matricule']}",
+                            style: const TextStyle(fontSize: 16)),
+                        subtitle: Text("Chambre: \${item['chambre']}",
+                            style: const TextStyle(fontSize: 14)),
                       );
                     },
                   ),
@@ -133,14 +137,16 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
           Expanded(
             child: Column(
               children: [
-                Text("Départs", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text("Départs",
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 Expanded(
                   child: ListView.builder(
                     itemCount: departs.length,
                     itemBuilder: (context, index) {
-                      final item = departs[index];
                       return ListTile(
-                        title: Text("Matricule: \${item['matricule']}", style: TextStyle(fontSize: 16)),
+                        title: Text("Matricule: \${item['matricule']}",
+                            style: const TextStyle(fontSize: 16)),
                       );
                     },
                   ),
@@ -157,14 +163,14 @@ class _ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
             heroTag: "arrivee",
             onPressed: () => _showAddDialog(true),
             tooltip: "Ajouter une arrivée",
-            child: Icon(Icons.add),
+            child: const Icon(Icons.add),
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           FloatingActionButton(
             heroTag: "depart",
             onPressed: () => _showAddDialog(false),
             tooltip: "Ajouter un départ",
-            child: Icon(Icons.remove),
+            child: const Icon(Icons.remove),
           ),
         ],
       ),
