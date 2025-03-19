@@ -14,6 +14,7 @@ void main() {
   sqfliteFfiInit();
   databaseFactory = databaseFactoryFfi;
   logger.d("Ceci est un message de debug");
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

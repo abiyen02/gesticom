@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:developer';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -50,18 +51,93 @@ class DatabaseHelper {
       CREATE TABLE departs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         matricule TEXT NOT NULL,
+        nom TEXT NOT NULL,
+        chambre TEXT NOT NULL,
+        type TEXT NOT NULL, 
         date_depart TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
   }
 
-  /// 🔹 **Récupérer les effectifs (clients présents)**
   Future<List<Map<String, dynamic>>> getEffectifs() async {
     final db = await instance.database;
     return await db.query('effectifs', orderBy: 'nom ASC');
   }
 
-  /// 🔹 **Mettre à jour les repas d’un client**
+  Future<List<Map<String, dynamic>>> getArrivees() async {
+    final db = await instance.database;
+    return await db.query('arrivees', orderBy: 'date_arrivee DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getDeparts() async {
+    final db = await instance.database;
+    return await db.query('departs', orderBy: 'date_depart DESC');
+  }
+
+  Future<void> addArrivee(String matricule, String nom, String chambre) async {
+    final db = await instance.database;
+    final String dateHeure = DateTime.now().toIso8601String();
+
+    await db.insert(
+      'arrivees',
+      {
+        'matricule': matricule,
+        'nom': nom,
+        'chambre': chambre,
+        'date_arrivee': dateHeure,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    await db.insert(
+      'effectifs',
+      {
+        'matricule': matricule,
+        'nom': nom,
+        'chambre': chambre,
+      },
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getClientByMatricule(String matricule) async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'effectifs',
+      where: 'matricule = ?',
+      whereArgs: [matricule],
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  Future<void> addDepart(String matricule, String type) async {
+    final db = await instance.database;
+    final String dateHeure = DateTime.now().toIso8601String();
+
+    final client = await getClientByMatricule(matricule);
+    if (client == null) {
+      log("❌ Client introuvable dans effectifs");
+      return;
+    }
+
+    await db.insert(
+      'departs',
+      {
+        'matricule': matricule,
+        'nom': client['nom'],
+        'chambre': client['chambre'],
+        'type': type,
+        'date_depart': dateHeure,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    await db
+        .delete('effectifs', where: 'matricule = ?', whereArgs: [matricule]);
+
+    log("✅ Client supprimé de effectifs et ajouté à departs !");
+  }
+
   Future<void> updateRepas(
       String matricule, bool repasMidi, bool repasSoir) async {
     final db = await instance.database;
@@ -74,59 +150,5 @@ class DatabaseHelper {
       where: 'matricule = ?',
       whereArgs: [matricule],
     );
-  }
-
-  /// 🔹 **Récupérer les arrivées**
-  Future<List<Map<String, dynamic>>> getArrivees() async {
-    final db = await instance.database;
-    return await db.query('arrivees', orderBy: 'date_arrivee DESC');
-  }
-
-  /// 🔹 **Récupérer les départs**
-  Future<List<Map<String, dynamic>>> getDeparts() async {
-    final db = await instance.database;
-    return await db.query('departs', orderBy: 'date_depart DESC');
-  }
-
-  /// 🔹 **Ajouter une arrivée**
-  Future<void> addArrivee(String matricule, String nom, String chambre) async {
-    final db = await instance.database;
-    await db.insert(
-      'arrivees',
-      {
-        'matricule': matricule,
-        'nom': nom,
-        'chambre': chambre,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-
-    // 🔹 Ajouter aussi dans les effectifs
-    await db.insert(
-      'effectifs',
-      {
-        'matricule': matricule,
-        'nom': nom,
-        'chambre': chambre,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  /// 🔹 **Ajouter un départ**
-  Future<void> addDepart(String matricule) async {
-    final db = await instance.database;
-    await db.insert(
-      'departs',
-      {
-        'matricule': matricule,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-
-    // 🔹 Supprimer de la table des effectifs et des arrivées
-    await db.delete('arrivees', where: 'matricule = ?', whereArgs: [matricule]);
-    await db
-        .delete('effectifs', where: 'matricule = ?', whereArgs: [matricule]);
   }
 }
