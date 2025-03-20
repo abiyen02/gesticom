@@ -83,6 +83,7 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
 
   void _supprimerClient() {
     TextEditingController matriculeController = TextEditingController();
+    String motifDepart = "Lib"; // Valeur par défaut
 
     showDialog(
       context: context,
@@ -109,29 +110,61 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
                 return;
               }
 
-              // Confirmation de suppression
+              // Affichage du motif de départ
               showDialog(
                 context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Confirmer la suppression"),
-                  content: Text(
-                      "Nom: ${client['nom']}\nChambre: ${client['chambre']}"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Annuler"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        await _dbHelper.addDepart(matricule, "Départ normal");
-                        Navigator.pop(context); // Ferme la confirmation
-                        Navigator.pop(context); // Ferme l'alerte principale
-                        _loadData(); // Recharge les listes après suppression
-                      },
-                      child: const Text("Confirmer"),
-                    ),
-                  ],
-                ),
+                builder: (context) {
+                  return StatefulBuilder(
+                    builder: (context, setState) {
+                      return AlertDialog(
+                        title: const Text("Confirmer la suppression"),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                                "Nom: ${client['nom']}\nChambre: ${client['chambre']}"),
+                            const SizedBox(height: 10),
+                            DropdownButtonFormField<String>(
+                              value: motifDepart,
+                              items: ["Lib", "Transf", "Vol", "Autres"]
+                                  .map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                              onChanged: (newValue) {
+                                setState(() {
+                                  motifDepart = newValue!;
+                                });
+                              },
+                              decoration: const InputDecoration(
+                                labelText: "Motif de départ",
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text("Annuler"),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              await _dbHelper.addDepart(matricule, motifDepart);
+                              Navigator.pop(context); // Ferme la confirmation
+                              Navigator.pop(
+                                  context); // Ferme l'alerte principale
+                              _loadData(); // Recharge les listes après suppression
+                            },
+                            child: const Text("Confirmer"),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
               );
             },
             child: const Text("Rechercher"),
@@ -235,7 +268,7 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
                             style:
                                 const TextStyle(fontWeight: FontWeight.bold)),
                         title: Text(
-                            "[${item['type']}] Nom: ${item['nom']} - Matricule: ${item['matricule']}"),
+                            "${item['type']} - ${item['nom']} (Matricule: ${item['matricule']})"),
                         subtitle: Text("Chambre: ${item['chambre']}"),
                       );
                     },
