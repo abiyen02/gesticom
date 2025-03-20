@@ -70,6 +70,13 @@ class DatabaseHelper {
         commentaire TEXT
       )
     ''');
+    await db.execute('''
+    CREATE TABLE mouvements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      heure TEXT NOT NULL
+  )
+''');
   }
 
   Future<List<Map<String, dynamic>>> getEffectifs() async {
@@ -198,5 +205,24 @@ class DatabaseHelper {
       where: 'matricule = ?',
       whereArgs: [matricule],
     );
+  }
+
+  // ✅ Fonction pour ajouter un mouvement
+  Future<void> addMouvement(String type) async {
+    final db = await database;
+    await db.insert(
+      'mouvements',
+      {
+        'type': type,
+        'heure': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // ✅ Fonction pour récupérer les mouvements
+  Future<List<Map<String, dynamic>>> getMouvements() async {
+    final db = await database;
+    return await db.query('mouvements', orderBy: "heure DESC");
   }
 }
