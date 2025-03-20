@@ -92,7 +92,6 @@ class DatabaseHelper {
     final String dateHeure =
         DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
-    // Insérer l'arrivée dans la table 'arrivees'
     await db.insert(
       'arrivees',
       {
@@ -104,7 +103,6 @@ class DatabaseHelper {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
-    // Insérer le client dans la table 'effectifs' s'il n'y est pas déjà
     await db.insert(
       'effectifs',
       {
@@ -115,13 +113,13 @@ class DatabaseHelper {
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
 
-    // Ajouter une entrée dans la 'main_courante'
+    // Ajouter à la main courante avec l'heure en premier
     await db.insert(
       'main_courante',
       {
         'heure': dateHeure,
         'description':
-            "Nouvelle arrivée : $nom ($matricule) - Chambre $chambre",
+            "$dateHeure - Nouvelle arrivée : $nom ($matricule) - Chambre $chambre",
         'paquetage': 0,
         'matelas': 0,
         'repas': 0,
@@ -143,9 +141,11 @@ class DatabaseHelper {
     return result.isNotEmpty ? result.first : null;
   }
 
-  Future<void> addDepart(String matricule, String type) async {
+  Future<void> addDepart(String matricule, String type, bool recupereMatelas,
+      bool recuperePaquetage) async {
     final db = await instance.database;
-    final String dateHeure = DateTime.now().toIso8601String();
+    final String dateHeure =
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
     final client = await getClientByMatricule(matricule);
     if (client == null) {
@@ -168,7 +168,22 @@ class DatabaseHelper {
     await db
         .delete('effectifs', where: 'matricule = ?', whereArgs: [matricule]);
 
-    log("✅ Client supprimé de effectifs et ajouté à departs !");
+    // Ajouter à la main courante avec matelas et paquetage
+    await db.insert(
+      'main_courante',
+      {
+        'heure': dateHeure,
+        'description':
+            "$dateHeure - Départ : ${client['nom']} ($matricule) - Chambre ${client['chambre']} - Type: $type",
+        'paquetage': recuperePaquetage ? 1 : 0,
+        'matelas': recupereMatelas ? 1 : 0,
+        'repas': 0, // Pas concerné par les départs
+        'commentaire': '',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    log("✅ Départ enregistré et ajouté dans la main courante.");
   }
 
   Future<void> updateRepas(

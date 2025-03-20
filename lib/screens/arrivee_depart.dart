@@ -71,6 +71,7 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
                 nomController.text,
                 chambreController.text,
               );
+              if (!context.mounted) return;
               Navigator.pop(context);
               _loadData();
             },
@@ -104,13 +105,16 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
               final client = await _dbHelper.getClientByMatricule(matricule);
 
               if (client == null) {
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                     content: Text("Client introuvable dans effectifs")));
+                if (!context.mounted) return;
                 Navigator.pop(context);
                 return;
               }
 
               // Affichage du motif de départ
+              if (!context.mounted) return;
               showDialog(
                 context: context,
                 builder: (context) {
@@ -152,7 +156,9 @@ class ArriveeDepartScreenState extends State<ArriveeDepartScreen> {
                           ),
                           TextButton(
                             onPressed: () async {
-                              await _dbHelper.addDepart(matricule, motifDepart);
+                              await _dbHelper.addDepart(
+                                  matricule, motifDepart, true, false);
+                              if (!context.mounted) return;
                               Navigator.pop(context); // Ferme la confirmation
                               Navigator.pop(
                                   context); // Ferme l'alerte principale

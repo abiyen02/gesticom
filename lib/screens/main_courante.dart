@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'database_helper.dart';
 
 class MainCouranteScreen extends StatefulWidget {
+  const MainCouranteScreen({Key? key}) : super(key: key);
   @override
-  _MainCouranteScreenState createState() => _MainCouranteScreenState();
+  MainCouranteScreenState createState() => MainCouranteScreenState();
 }
 
-class _MainCouranteScreenState extends State<MainCouranteScreen> {
+class MainCouranteScreenState extends State<MainCouranteScreen> {
   List<Map<String, dynamic>> _events = [];
 
   @override

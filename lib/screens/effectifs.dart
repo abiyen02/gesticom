@@ -65,10 +65,10 @@ class EffectifScreenState extends State<EffectifScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _tableText('Matricule', true),
-          _tableText('Nom', true),
+          _tableText('Nom & Prenom', true),
           _tableText('Chambre', true),
-          _tableText('M', true),
-          _tableText('S', true),
+          _tableText('       M', true),
+          _tableText('          S', true),
           _tableText('Commentaire', true),
         ],
       ),
