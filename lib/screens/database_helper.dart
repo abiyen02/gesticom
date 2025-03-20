@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:developer';
+import 'package:intl/intl.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -57,6 +58,18 @@ class DatabaseHelper {
         date_depart TEXT DEFAULT CURRENT_TIMESTAMP
       )
     ''');
+
+    await db.execute('''
+      CREATE TABLE main_courante (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        heure TEXT,
+        description TEXT,
+        paquetage INTEGER DEFAULT 0,
+        matelas INTEGER DEFAULT 0,
+        repas INTEGER DEFAULT 0,
+        commentaire TEXT
+      )
+    ''');
   }
 
   Future<List<Map<String, dynamic>>> getEffectifs() async {
@@ -76,8 +89,10 @@ class DatabaseHelper {
 
   Future<void> addArrivee(String matricule, String nom, String chambre) async {
     final db = await instance.database;
-    final String dateHeure = DateTime.now().toIso8601String();
+    final String dateHeure =
+        DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
+    // Insérer l'arrivée dans la table 'arrivees'
     await db.insert(
       'arrivees',
       {
@@ -89,6 +104,7 @@ class DatabaseHelper {
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
+    // Insérer le client dans la table 'effectifs' s'il n'y est pas déjà
     await db.insert(
       'effectifs',
       {
@@ -98,6 +114,23 @@ class DatabaseHelper {
       },
       conflictAlgorithm: ConflictAlgorithm.ignore,
     );
+
+    // Ajouter une entrée dans la 'main_courante'
+    await db.insert(
+      'main_courante',
+      {
+        'heure': dateHeure,
+        'description':
+            "Nouvelle arrivée : $nom ($matricule) - Chambre $chambre",
+        'paquetage': 0,
+        'matelas': 0,
+        'repas': 0,
+        'commentaire': '',
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+
+    log("✅ Arrivée enregistrée et ajoutée dans la main courante.");
   }
 
   Future<Map<String, dynamic>?> getClientByMatricule(String matricule) async {
