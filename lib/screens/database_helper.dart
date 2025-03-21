@@ -225,4 +225,25 @@ class DatabaseHelper {
     final db = await database;
     return await db.query('mouvements', orderBy: "heure DESC");
   }
+
+// Mettre à jour un mouvement existant
+  Future<int> updateMouvement(int id, String newText) async {
+    final db = await database;
+    return await db.update(
+      'mouvements',
+      {'type': newText},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+// Supprimer un mouvement
+  Future<int> deleteMouvement(int id) async {
+    final db = await database;
+    return await db.delete(
+      'mouvements',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

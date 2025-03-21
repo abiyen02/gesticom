@@ -52,6 +52,7 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
         'description': mouvement['type'],
         'heure': DateTime.parse(mouvement['heure']),
         'type': 'mouvement',
+        'id': mouvement['id'], // Important pour l'édition et la suppression
       });
     }
 
@@ -87,15 +88,15 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     });
   }
 
-  // Fonction pour afficher la boîte de dialogue pour saisir un mouvement personnalisé
-  Future<void> _showCustomMouvementDialog() async {
+  // Fonction pour ajouter un mouvement personnalisé
+  Future<void> _showAddMouvementDialog() async {
     _mouvementController.clear(); // Réinitialiser le champ de texte
 
     String? customMouvement = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Saisir un mouvement personnalisé"),
+          title: const Text("Ajouter un mouvement"),
           content: TextField(
             controller: _mouvementController,
             decoration: const InputDecoration(
@@ -129,6 +130,116 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     }
   }
 
+  // Fonction pour modifier un mouvement existant
+  Future<void> _showEditMouvementDialog(int id, String currentText) async {
+    _mouvementController.text = currentText; // Pré-remplir avec le texte actuel
+
+    String? updatedMouvement = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Modifier le mouvement"),
+          content: TextField(
+            controller: _mouvementController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (_mouvementController.text.isNotEmpty) {
+                  Navigator.pop(context, _mouvementController.text);
+                }
+              },
+              child: const Text("Enregistrer"),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Si le mouvement a été modifié, on met à jour la base de données
+    if (updatedMouvement != null && updatedMouvement.isNotEmpty) {
+      await DatabaseHelper.instance.updateMouvement(id, updatedMouvement);
+      _loadMouvements();
+    }
+  }
+
+  // Fonction pour confirmer et supprimer un mouvement
+  Future<void> _showDeleteConfirmationDialog(int id) async {
+    bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Supprimer le mouvement"),
+          content:
+              const Text("Êtes-vous sûr de vouloir supprimer ce mouvement ?"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Annuler"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text("Supprimer",
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    // Si la suppression est confirmée, on supprime de la base de données
+    if (confirmDelete == true) {
+      await DatabaseHelper.instance.deleteMouvement(id);
+      _loadMouvements();
+    }
+  }
+
+  // Fonction pour afficher le menu d'options sur un mouvement
+  void _showMouvementOptions(int id, String description) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.blue),
+                title: const Text("Modifier"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showEditMouvementDialog(id, description);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text("Supprimer"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDeleteConfirmationDialog(id);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text("Annuler"),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,9 +258,26 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(event['description'],
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                event['description'],
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            // Bouton d'action pour les mouvements uniquement
+                            if (event['type'] == 'mouvement')
+                              IconButton(
+                                icon: const Icon(Icons.more_vert),
+                                onPressed: () {
+                                  _showMouvementOptions(
+                                      event['id'], event['description']);
+                                },
+                              ),
+                          ],
+                        ),
                         Text(
                             "Heure: ${DateFormat('HH:mm').format(event['heure'])}",
                             style: const TextStyle(color: Colors.grey)),
@@ -196,57 +324,61 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          String? selectedMouvement = await showDialog<String>(
-            context: context,
-            builder: (context) {
-              return SimpleDialog(
-                title: const Text("Sélectionner un mouvement"),
-                children: [
-                  // Option pour saisir un mouvement personnalisé
-                  SimpleDialogOption(
-                    onPressed: () {
-                      Navigator.pop(context); // Fermer cette boîte de dialogue
-                      _showCustomMouvementDialog(); // Afficher la boîte de dialogue de saisie
-                    },
-                    child: const Text("Saisissez un mouvement",
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.blue)),
-                  ),
-                  // Liste des mouvements prédéfinis
-                  for (String option in [
-                    "Prise de service de [....]",
-                    "Fin de service de [....]",
-                    "Debut des distribution des rasoirs",
-                    "Fin des distribution des rasoirs",
-                    "Arrivée de l'agent de l'ASSFAM",
-                    "Depart de l'agent de l'ASSFAM",
-                    "Arrivée de l'agent de l'OFII",
-                    "Depart de l'agent de l'OFII",
-                    "Ouverture de l'infirmerie sous surveillance policière",
-                    "Fermeture de l'infirmerie sous surveillance policière",
-                    "Debut des consultations médicales",
-                    "Fin des consultations médicales",
-                    "Ouverture du refectoire sous surveillance policière",
-                    "Fermeture du refectoire sous surveillance policière",
-                  ])
-                    SimpleDialogOption(
-                      onPressed: () => Navigator.pop(context, option),
-                      child: Text(option),
-                    ),
-                ],
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Bouton pour ajouter un nouveau mouvement personnalisé
+          FloatingActionButton(
+            heroTag: "btn_custom",
+            onPressed: _showAddMouvementDialog,
+            backgroundColor: Colors.green,
+            child: const Icon(Icons.add_comment),
+          ),
+          const SizedBox(height: 10),
+          // Bouton pour ajouter un mouvement prédéfini
+          FloatingActionButton(
+            heroTag: "btn_preset",
+            onPressed: () async {
+              String? selectedMouvement = await showDialog<String>(
+                context: context,
+                builder: (context) {
+                  return SimpleDialog(
+                    title: const Text("Sélectionner un mouvement"),
+                    children: [
+                      for (String option in [
+                        "Prise de service de [....]",
+                        "Fin de service de [....]",
+                        "Debut des distribution des rasoirs",
+                        "Fin des distribution des rasoirs",
+                        "Arrivée de l'agent de l'ASSFAM",
+                        "Depart de l'agent de l'ASSFAM",
+                        "Arrivée de l'agent de l'OFII",
+                        "Depart de l'agent de l'OFII",
+                        "Ouverture de l'infirmerie sous surveillance policière",
+                        "Fermeture de l'infirmerie sous surveillance policière",
+                        "Debut des consultations médicales",
+                        "Fin des consultations médicales",
+                        "Ouverture du refectoire sous surveillance policière",
+                        "Fermeture du refectoire sous surveillance policière",
+                      ])
+                        SimpleDialogOption(
+                          onPressed: () => Navigator.pop(context, option),
+                          child: Text(option),
+                        ),
+                    ],
+                  );
+                },
               );
-            },
-          );
 
-          // Si un mouvement prédéfini a été sélectionné, on l'ajoute à la base de données
-          if (selectedMouvement != null) {
-            await DatabaseHelper.instance.addMouvement(selectedMouvement);
-            _loadMouvements();
-          }
-        },
-        child: const Icon(Icons.add),
+              // Si un mouvement prédéfini a été sélectionné, on l'ajoute à la base de données
+              if (selectedMouvement != null) {
+                await DatabaseHelper.instance.addMouvement(selectedMouvement);
+                _loadMouvements();
+              }
+            },
+            child: const Icon(Icons.add),
+          ),
+        ],
       ),
     );
   }
