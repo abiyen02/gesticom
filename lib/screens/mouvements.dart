@@ -36,7 +36,8 @@ class MouvementsScreenState extends State<MouvementsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
+        // Utilisez un BuildContext local ici
         String? selectedMouvement;
         return AlertDialog(
           title: const Text("Ajouter un mouvement"),
@@ -57,14 +58,16 @@ class MouvementsScreenState extends State<MouvementsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () =>
+                  Navigator.pop(dialogContext), // Utilisez dialogContext ici
               child: const Text("Annuler"),
             ),
             TextButton(
               onPressed: () async {
                 if (selectedMouvement != null) {
                   await _dbHelper.addMouvement(selectedMouvement!);
-                  Navigator.pop(context);
+                  if (!mounted) return; // Vérifiez si le widget est monté
+                  Navigator.pop(dialogContext); // Utilisez dialogContext ici
                   _loadMouvements();
                 }
               },

@@ -2,10 +2,12 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import 'dart:developer';
 import 'package:intl/intl.dart';
+import 'package:logger/logger.dart'; // Assurez-vous que Logger est importé
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+  final Logger _logger = Logger(); // Ajoutez une instance de Logger
 
   DatabaseHelper._init();
 
@@ -21,9 +23,18 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Incrémentez la version ici
       onCreate: _createDB,
+      onUpgrade: _upgradeDB, // Ajoutez cette ligne pour gérer les mises à jour
     );
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+      ALTER TABLE mouvements ADD COLUMN refus TEXT
+    ''');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -74,8 +85,10 @@ class DatabaseHelper {
     CREATE TABLE mouvements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL,
-      heure TEXT NOT NULL
-  )
+      heure TEXT NOT NULL,
+      refus TEXT,
+      commentaire TEXT
+    )
 ''');
   }
 
@@ -215,15 +228,22 @@ class DatabaseHelper {
       {
         'type': type,
         'heure': DateTime.now().toIso8601String(),
+        'refus': '',
+        'commentaire': ''
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+    _logger.i(
+        "Mouvement ajouté dans la base de données : $type"); // Remplacez print
   }
 
   // ✅ Fonction pour récupérer les mouvements
   Future<List<Map<String, dynamic>>> getMouvements() async {
     final db = await database;
-    return await db.query('mouvements', orderBy: "heure DESC");
+    final data = await db.query('mouvements', orderBy: "heure DESC");
+    _logger.i(
+        "Mouvements récupérés de la base de données : $data"); // Remplacez print
+    return data;
   }
 
 // Mettre à jour un mouvement existant
@@ -232,6 +252,18 @@ class DatabaseHelper {
     return await db.update(
       'mouvements',
       {'type': newText},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // Mettre à jour les refus et commentaires d'un mouvement
+  Future<int> updateMouvementRefus(
+      int id, String refus, String commentaire) async {
+    final db = await database;
+    return await db.update(
+      'mouvements',
+      {'refus': refus, 'commentaire': commentaire},
       where: 'id = ?',
       whereArgs: [id],
     );

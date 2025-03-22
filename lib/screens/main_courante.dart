@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:logger/logger.dart';
 import 'database_helper.dart';
 
 class MainCouranteScreen extends StatefulWidget {
-  const MainCouranteScreen({Key? key}) : super(key: key);
+  const MainCouranteScreen({super.key}); // Utilisation du super paramètre
+
   @override
   MainCouranteScreenState createState() => MainCouranteScreenState();
 }
@@ -11,28 +13,30 @@ class MainCouranteScreen extends StatefulWidget {
 class MainCouranteScreenState extends State<MainCouranteScreen> {
   List<Map<String, dynamic>> _events = [];
   List<Map<String, dynamic>> mouvements = [];
-  // Contrôleur pour le champ de texte du mouvement personnalisé
+  List<Map<String, dynamic>> _effectifs = [];
+
   final TextEditingController _mouvementController = TextEditingController();
+  final TextEditingController _commentaireController = TextEditingController();
+  final Logger _logger = Logger();
 
   @override
   void initState() {
     super.initState();
     fetchEvents();
     _loadMouvements();
+    _loadEffectifs();
   }
 
-  // Ne pas oublier de libérer le contrôleur quand l'écran est détruit
   @override
   void dispose() {
     _mouvementController.dispose();
+    _commentaireController.dispose();
     super.dispose();
   }
 
-  // Fonction pour obtenir tous les événements triés par heure
   List<Map<String, dynamic>> getSortedEvents() {
     List<Map<String, dynamic>> allEvents = [];
 
-    // Ajout des événements principaux
     for (var event in _events) {
       allEvents.add({
         'description': event['description'],
@@ -46,22 +50,21 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       });
     }
 
-    // Ajout des mouvements
     for (var mouvement in mouvements) {
       allEvents.add({
         'description': mouvement['type'],
         'heure': DateTime.parse(mouvement['heure']),
         'type': 'mouvement',
-        'id': mouvement['id'], // Important pour l'édition et la suppression
+        'id': mouvement['id'],
+        'refus': mouvement['refus'],
+        'commentaire': mouvement['commentaire'],
       });
     }
 
-    // Tri par heure
     allEvents.sort((a, b) => a['heure'].compareTo(b['heure']));
     return allEvents;
   }
 
-  // Récupération des événements depuis la base de données
   Future<void> fetchEvents() async {
     final db = await DatabaseHelper.instance.database;
     final events = await db.query('main_courante');
@@ -70,7 +73,32 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     });
   }
 
-  // Mise à jour d'un événement dans la base de données
+  Future<void> _loadEffectifs() async {
+    final db = await DatabaseHelper.instance.database;
+    try {
+      await db.rawQuery('SELECT 1 FROM effectifs LIMIT 1');
+    } catch (e) {
+      await db.execute('''
+        CREATE TABLE effectifs(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nom TEXT,
+          matricule TEXT
+        )
+      ''');
+
+      await db.insert('effectifs', {'nom': 'Dupont', 'matricule': 'M123456'});
+      await db.insert('effectifs', {'nom': 'Martin', 'matricule': 'M234567'});
+      await db.insert('effectifs', {'nom': 'Durand', 'matricule': 'M345678'});
+      await db.insert('effectifs', {'nom': 'Petit', 'matricule': 'M456789'});
+      await db.insert('effectifs', {'nom': 'Leroy', 'matricule': 'M567890'});
+    }
+
+    final effectifs = await db.query('effectifs');
+    setState(() {
+      _effectifs = effectifs;
+    });
+  }
+
   Future<void> updateEvent(int id, String column, dynamic value) async {
     final db = await DatabaseHelper.instance.database;
     int intValue =
@@ -80,17 +108,16 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     fetchEvents();
   }
 
-  // Chargement des mouvements depuis la base de données
   Future<void> _loadMouvements() async {
     final data = await DatabaseHelper.instance.getMouvements();
+    _logger.i("Mouvements récupérés : $data");
     setState(() {
       mouvements = data;
     });
   }
 
-  // Fonction pour ajouter un mouvement personnalisé
   Future<void> _showAddMouvementDialog() async {
-    _mouvementController.clear(); // Réinitialiser le champ de texte
+    _mouvementController.clear();
 
     String? customMouvement = await showDialog<String>(
       context: context,
@@ -123,55 +150,114 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       },
     );
 
-    // Si un mouvement personnalisé a été saisi, on l'ajoute à la base de données
     if (customMouvement != null && customMouvement.isNotEmpty) {
       await DatabaseHelper.instance.addMouvement(customMouvement);
+      _logger.i("Mouvement ajouté : $customMouvement");
       _loadMouvements();
     }
   }
 
-  // Fonction pour modifier un mouvement existant
-  Future<void> _showEditMouvementDialog(int id, String currentText) async {
-    _mouvementController.text = currentText; // Pré-remplir avec le texte actuel
+  Future<void> _showRefusRepasDialog(
+      int mouvementId, String refusActuel) async {
+    Map<int, bool> refusMap = {};
+    List<String> refusActuels =
+        refusActuel.isNotEmpty ? refusActuel.split('; ') : [];
 
-    String? updatedMouvement = await showDialog<String>(
+    for (var effectif in _effectifs) {
+      String identifiant = "${effectif['nom']} ${effectif['matricule']}";
+      refusMap[effectif['id']] = refusActuels.contains(identifiant);
+    }
+
+    _commentaireController.clear();
+
+    Map<String, dynamic>? mouvement;
+    for (var m in mouvements) {
+      if (m['id'] == mouvementId) {
+        mouvement = m;
+        break;
+      }
+    }
+
+    if (mouvement != null && mouvement['commentaire'] != null) {
+      _commentaireController.text = mouvement['commentaire'];
+    }
+
+    bool? result = await showDialog<bool>(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("Modifier le mouvement"),
-          content: TextField(
-            controller: _mouvementController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-            ),
-            autofocus: true,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Annuler"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (_mouvementController.text.isNotEmpty) {
-                  Navigator.pop(context, _mouvementController.text);
-                }
-              },
-              child: const Text("Enregistrer"),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Gestion des refus de repas"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _effectifs.length,
+                        itemBuilder: (context, index) {
+                          final effectif = _effectifs[index];
+                          return CheckboxListTile(
+                            title: Text(
+                                "${effectif['nom']} - ${effectif['matricule']}"),
+                            value: refusMap[effectif['id']] ?? false,
+                            onChanged: (bool? value) {
+                              setDialogState(() {
+                                refusMap[effectif['id']] = value ?? false;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _commentaireController,
+                      decoration: const InputDecoration(
+                        labelText: "Commentaire",
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text("Annuler"),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text("Enregistrer"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
 
-    // Si le mouvement a été modifié, on met à jour la base de données
-    if (updatedMouvement != null && updatedMouvement.isNotEmpty) {
-      await DatabaseHelper.instance.updateMouvement(id, updatedMouvement);
+    if (result == true) {
+      List<String> refusNoms = [];
+      for (var effectif in _effectifs) {
+        if (refusMap[effectif['id']] == true) {
+          refusNoms.add("${effectif['nom']} ${effectif['matricule']}");
+        }
+      }
+
+      String refusString = refusNoms.join('; ');
+      String commentaire = _commentaireController.text;
+
+      await DatabaseHelper.instance
+          .updateMouvementRefus(mouvementId, refusString, commentaire);
       _loadMouvements();
     }
   }
 
-  // Fonction pour confirmer et supprimer un mouvement
   Future<void> _showDeleteConfirmationDialog(int id) async {
     bool? confirmDelete = await showDialog<bool>(
       context: context,
@@ -196,15 +282,16 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       },
     );
 
-    // Si la suppression est confirmée, on supprime de la base de données
     if (confirmDelete == true) {
       await DatabaseHelper.instance.deleteMouvement(id);
       _loadMouvements();
     }
   }
 
-  // Fonction pour afficher le menu d'options sur un mouvement
-  void _showMouvementOptions(int id, String description) {
+  void _showMouvementOptions(int id, String description, {String? refus}) {
+    bool isFermetureRefectoire =
+        description == "Fermeture du refectoire sous surveillance policière";
+
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -212,6 +299,18 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (isFermetureRefectoire)
+                ListTile(
+                  leading: const Icon(Icons.no_food, color: Colors.orange),
+                  title: Text(refus != null && refus.isNotEmpty
+                      ? "${refus.split('; ').length.toString()} - Refus"
+                      : "0 - Refus"),
+                  onTap: () {
+                    Navigator.pop(context); // Ferme le BottomSheet
+                    _showRefusRepasDialog(
+                        id, refus ?? ""); // Appelle le dialogue
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.blue),
                 title: const Text("Modifier"),
@@ -240,8 +339,15 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     );
   }
 
+  void _showEditMouvementDialog(int id, String description) {
+    // Implémentez la logique pour afficher le dialogue de modification ici
+    _logger.i(
+        "Modifier le mouvement avec l'ID: $id et la description: $description");
+  }
+
   @override
   Widget build(BuildContext context) {
+    _logger.i("Mouvements à afficher : $mouvements");
     return Scaffold(
       appBar: AppBar(title: const Text("Main Courante")),
       body: getSortedEvents().isEmpty
@@ -250,6 +356,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
               itemCount: getSortedEvents().length,
               itemBuilder: (context, index) {
                 final event = getSortedEvents()[index];
+                final bool isFermetureRefectoire = event['description'] ==
+                    "Fermeture du refectoire sous surveillance policière";
+
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
@@ -267,13 +376,15 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                                     fontWeight: FontWeight.bold),
                               ),
                             ),
-                            // Bouton d'action pour les mouvements uniquement
                             if (event['type'] == 'mouvement')
                               IconButton(
                                 icon: const Icon(Icons.more_vert),
                                 onPressed: () {
                                   _showMouvementOptions(
-                                      event['id'], event['description']);
+                                    event['id'],
+                                    event['description'],
+                                    refus: event['refus'],
+                                  );
                                 },
                               ),
                           ],
@@ -281,6 +392,39 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                         Text(
                             "Heure: ${DateFormat('HH:mm').format(event['heure'])}",
                             style: const TextStyle(color: Colors.grey)),
+                        if (isFermetureRefectoire &&
+                            event['refus'] != null &&
+                            event['refus'].isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "${event['refus'].split('; ').length} - Refus:",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                                Text(
+                                  event['refus'],
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        if (event['type'] == 'mouvement' &&
+                            event['commentaire'] != null &&
+                            event['commentaire'].isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              "Commentaire: ${event['commentaire']}",
+                              style:
+                                  const TextStyle(fontStyle: FontStyle.italic),
+                            ),
+                          ),
                         if (event['type'] == 'event')
                           Row(
                             children: [
@@ -327,7 +471,6 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Bouton pour ajouter un nouveau mouvement personnalisé
           FloatingActionButton(
             heroTag: "btn_custom",
             onPressed: _showAddMouvementDialog,
@@ -335,7 +478,6 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
             child: const Icon(Icons.add_comment),
           ),
           const SizedBox(height: 10),
-          // Bouton pour ajouter un mouvement prédéfini
           FloatingActionButton(
             heroTag: "btn_preset",
             onPressed: () async {
@@ -370,9 +512,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                 },
               );
 
-              // Si un mouvement prédéfini a été sélectionné, on l'ajoute à la base de données
               if (selectedMouvement != null) {
                 await DatabaseHelper.instance.addMouvement(selectedMouvement);
+                _logger.i("Mouvement sélectionné : $selectedMouvement");
                 _loadMouvements();
               }
             },
