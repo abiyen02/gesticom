@@ -4,8 +4,6 @@ import 'screens/arrivee_depart.dart';
 import 'screens/historique.dart';
 import 'screens/main_courante.dart';
 import 'screens/categories.dart';
-/*import 'screens/database_helper.dart';
-import 'package:sqflite_common/sqlite_api.dart';*/
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:logger/logger.dart';
 

@@ -65,6 +65,8 @@ class MouvementsScreenState extends State<MouvementsScreen> {
             TextButton(
               onPressed: () async {
                 if (selectedMouvement != null) {
+                  // Vérifiez si une option est sélectionnée
+
                   await _dbHelper.addMouvement(selectedMouvement!);
                   if (!mounted) return; // Vérifiez si le widget est monté
                   Navigator.pop(dialogContext); // Utilisez dialogContext ici
