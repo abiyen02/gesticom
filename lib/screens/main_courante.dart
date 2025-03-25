@@ -13,7 +13,7 @@ class MainCouranteScreen extends StatefulWidget {
 class MainCouranteScreenState extends State<MainCouranteScreen> {
   List<Map<String, dynamic>> _events = [];
   List<Map<String, dynamic>> mouvements = [];
-  List<Map<String, dynamic>> _effectifs = [];
+  List<Map<String, dynamic>> effectifs = [];
 
   final TextEditingController _mouvementController = TextEditingController();
   final TextEditingController _commentaireController = TextEditingController();
@@ -24,7 +24,8 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     super.initState();
     fetchEvents();
     _loadMouvements();
-    _loadEffectifs();
+    //
+    // _loadEffectifs();
   }
 
   @override
@@ -73,6 +74,7 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     });
   }
 
+/*
   Future<void> _loadEffectifs() async {
     final db = await DatabaseHelper.instance.database;
     try {
@@ -98,7 +100,7 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       _effectifs = effectifs;
     });
   }
-
+*/
   Future<void> updateEvent(int id, String column, dynamic value) async {
     final db = await DatabaseHelper.instance.database;
     int intValue =
@@ -163,7 +165,7 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     List<String> refusActuels =
         refusActuel.isNotEmpty ? refusActuel.split('; ') : [];
 
-    for (var effectif in _effectifs) {
+    for (var effectif in effectifs) {
       String identifiant = "${effectif['nom']} ${effectif['matricule']}";
       refusMap[effectif['id']] = refusActuels.contains(identifiant);
     }
@@ -197,9 +199,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                     Expanded(
                       child: ListView.builder(
                         shrinkWrap: true,
-                        itemCount: _effectifs.length,
+                        itemCount: effectifs.length,
                         itemBuilder: (context, index) {
-                          final effectif = _effectifs[index];
+                          final effectif = effectifs[index];
                           return CheckboxListTile(
                             title: Text(
                                 "${effectif['nom']} - ${effectif['matricule']}"),
@@ -243,7 +245,7 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
 
     if (result == true) {
       List<String> refusNoms = [];
-      for (var effectif in _effectifs) {
+      for (var effectif in effectifs) {
         if (refusMap[effectif['id']] == true) {
           refusNoms.add("${effectif['nom']} ${effectif['matricule']}");
         }
@@ -490,6 +492,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                       for (String option in [
                         "Prise de service de [....]",
                         "Fin de service de [....]",
+                        "Depart VIP",
+                        "Depart ECO",
+                        "Depart PREMIUM",
                         "Debut des distribution des rasoirs",
                         "Fin des distribution des rasoirs",
                         "Arrivée de l'agent de l'ASSFAM",
@@ -524,4 +529,127 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       ),
     );
   }
+  /*
+  void _handleDepart(String type) async {
+    final dbHelper = DatabaseHelper.instance;
+
+    // Étape 1 : Sélectionner les départs
+    List<Map<String, dynamic>> selectedDepartures = [];
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text("Sélectionner les départs ($type)"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: effectifs.length,
+                  itemBuilder: (context, index) {
+                    final effectif = effectifs[index];
+                    final isSelected = selectedDepartures.contains(effectif);
+
+                    return CheckboxListTile(
+                      title:
+                          Text("${effectif['matricule']} - ${effectif['nom']}"),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setStateDialog(() {
+                          if (value == true) {
+                            selectedDepartures.add(effectif);
+                          } else {
+                            selectedDepartures.remove(effectif);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annuler"),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Suivant"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedDepartures.isEmpty) return;
+
+    // Étape 2 : Gérer les refus
+    List<Map<String, dynamic>> selectedRefus = [];
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text("Sélectionner les refus"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: selectedDepartures.length,
+                  itemBuilder: (context, index) {
+                    final departure = selectedDepartures[index];
+                    final isRefused = selectedRefus.contains(departure);
+
+                    return CheckboxListTile(
+                      title: Text(
+                          "${departure['matricule']} - ${departure['nom']}"),
+                      value: isRefused,
+                      onChanged: (bool? value) {
+                        setStateDialog(() {
+                          if (value == true) {
+                            selectedRefus.add(departure);
+                          } else {
+                            selectedRefus.remove(departure);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Annuler"),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Terminer"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // Étape 3 : Ajouter les départs et refus dans la base de données
+    String refusString = selectedRefus
+        .map((refus) => "${refus['matricule']} - ${refus['nom']}")
+        .join("; ");
+
+    String description = "$type : ${selectedDepartures.length} départ(s)";
+    await dbHelper.addMouvement(description);
+
+    if (refusString.isNotEmpty) {
+      await dbHelper.addMouvement("Refus : $refusString");
+    }
+
+    // Recharger les mouvements
+    _loadMouvements();
+  }*/
 }

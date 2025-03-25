@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart'; // Import for printing functionality
+import 'package:pdf/pdf.dart'; // Import for PDF generation
+import 'package:pdf/widgets.dart' as pw; // Import for PDF widgets
+import 'dart:typed_data'; // Import for Uint8List
 import 'database_helper.dart';
 
 class EffectifScreen extends StatefulWidget {
@@ -26,7 +30,10 @@ class EffectifScreenState extends State<EffectifScreen> {
   }
 
   Future<void> _updateRepas(
-      String matricule, bool repasMidi, bool repasSoir) async {
+    String matricule,
+    bool repasMidi,
+    bool repasSoir,
+  ) async {
     await _dbHelper.updateRepas(matricule, repasMidi, repasSoir);
     await _loadEffectifs();
   }
@@ -34,13 +41,28 @@ class EffectifScreenState extends State<EffectifScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Effectifs'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print),
+            onPressed: () async {
+              await Printing.layoutPdf(
+                onLayout: (PdfPageFormat format) async => _generatePdf(format),
+              );
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Liste des Effectifs',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const Text(
+              'Liste des Effectifs',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 10),
             Expanded(
               child: ListView(
@@ -56,11 +78,78 @@ class EffectifScreenState extends State<EffectifScreen> {
     );
   }
 
+  Future<Uint8List> _generatePdf(PdfPageFormat format) async {
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            children: [
+              pw.Text('Liste des Effectifs', style: pw.TextStyle(fontSize: 24)),
+              pw.SizedBox(height: 20),
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Text(
+                        'Matricule',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'Nom',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'Chambre',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'Repas Midi',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'Repas Soir',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.Text(
+                        'Commentaire',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  ..._effectifs.map((effectif) {
+                    return pw.TableRow(
+                      children: [
+                        pw.Text(effectif['matricule']?.toString() ?? ''),
+                        pw.Text(effectif['nom'] ?? ''),
+                        pw.Text(effectif['chambre'] ?? ''),
+                        pw.Text(
+                          (effectif['repas_midi'] ?? 0) == 1 ? 'Oui' : 'Non',
+                        ),
+                        pw.Text(
+                          (effectif['repas_soir'] ?? 0) == 1 ? 'Oui' : 'Non',
+                        ),
+                        pw.Text(effectif['commentaire'] ?? ''),
+                      ],
+                    );
+                  }).toList(),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    return pdf.save(); // Ensure the return statement is present
+  }
+
   Widget _buildTableHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      decoration:
-          const BoxDecoration(border: Border(bottom: BorderSide(width: 2.0))),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(width: 2.0)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -79,7 +168,8 @@ class EffectifScreenState extends State<EffectifScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(width: 1.0, color: Colors.grey))),
+        border: Border(bottom: BorderSide(width: 1.0, color: Colors.grey)),
+      ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -88,17 +178,21 @@ class EffectifScreenState extends State<EffectifScreen> {
           _tableText(effectif['chambre'] ?? '', false),
           Checkbox(
             value: (effectif['repas_midi'] ?? 0) == 1,
-            onChanged: (value) => _updateRepas(
-                effectif['matricule']?.toString() ?? '',
-                value!,
-                (effectif['repas_soir'] ?? 0) == 1),
+            onChanged:
+                (value) => _updateRepas(
+                  effectif['matricule']?.toString() ?? '',
+                  value!,
+                  (effectif['repas_soir'] ?? 0) == 1,
+                ),
           ),
           Checkbox(
             value: (effectif['repas_soir'] ?? 0) == 1,
-            onChanged: (value) => _updateRepas(
-                effectif['matricule']?.toString() ?? '',
-                (effectif['repas_midi'] ?? 0) == 1,
-                value!),
+            onChanged:
+                (value) => _updateRepas(
+                  effectif['matricule']?.toString() ?? '',
+                  (effectif['repas_midi'] ?? 0) == 1,
+                  value!,
+                ),
           ),
           _tableText(effectif['commentaire'] ?? '', false),
         ],
