@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'database_helper.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class MainCouranteScreen extends StatefulWidget {
   const MainCouranteScreen({super.key}); // Utilisation du super paramètre
@@ -74,39 +77,16 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
     });
   }
 
-/*
-  Future<void> _loadEffectifs() async {
-    final db = await DatabaseHelper.instance.database;
-    try {
-      await db.rawQuery('SELECT 1 FROM effectifs LIMIT 1');
-    } catch (e) {
-      await db.execute('''
-        CREATE TABLE effectifs(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          nom TEXT,
-          matricule TEXT
-        )
-      ''');
-
-      await db.insert('effectifs', {'nom': 'Dupont', 'matricule': 'M123456'});
-      await db.insert('effectifs', {'nom': 'Martin', 'matricule': 'M234567'});
-      await db.insert('effectifs', {'nom': 'Durand', 'matricule': 'M345678'});
-      await db.insert('effectifs', {'nom': 'Petit', 'matricule': 'M456789'});
-      await db.insert('effectifs', {'nom': 'Leroy', 'matricule': 'M567890'});
-    }
-
-    final effectifs = await db.query('effectifs');
-    setState(() {
-      _effectifs = effectifs;
-    });
-  }
-*/
   Future<void> updateEvent(int id, String column, dynamic value) async {
     final db = await DatabaseHelper.instance.database;
     int intValue =
         (value is bool) ? (value ? 1 : 0) : int.tryParse(value.toString()) ?? 0;
-    await db.update('main_courante', {column: intValue},
-        where: 'id = ?', whereArgs: [id]);
+    await db.update(
+      'main_courante',
+      {column: intValue},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
     fetchEvents();
   }
 
@@ -160,7 +140,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
   }
 
   Future<void> _showRefusRepasDialog(
-      int mouvementId, String refusActuel) async {
+    int mouvementId,
+    String refusActuel,
+  ) async {
     Map<int, bool> refusMap = {};
     List<String> refusActuels =
         refusActuel.isNotEmpty ? refusActuel.split('; ') : [];
@@ -204,7 +186,8 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
                           final effectif = effectifs[index];
                           return CheckboxListTile(
                             title: Text(
-                                "${effectif['nom']} - ${effectif['matricule']}"),
+                              "${effectif['nom']} - ${effectif['matricule']}",
+                            ),
                             value: refusMap[effectif['id']] ?? false,
                             onChanged: (bool? value) {
                               setDialogState(() {
@@ -254,8 +237,11 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       String refusString = refusNoms.join('; ');
       String commentaire = _commentaireController.text;
 
-      await DatabaseHelper.instance
-          .updateMouvementRefus(mouvementId, refusString, commentaire);
+      await DatabaseHelper.instance.updateMouvementRefus(
+        mouvementId,
+        refusString,
+        commentaire,
+      );
       _loadMouvements();
     }
   }
@@ -266,8 +252,9 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text("Supprimer le mouvement"),
-          content:
-              const Text("Êtes-vous sûr de vouloir supprimer ce mouvement ?"),
+          content: const Text(
+            "Êtes-vous sûr de vouloir supprimer ce mouvement ?",
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -276,8 +263,10 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text("Supprimer",
-                  style: TextStyle(color: Colors.white)),
+              child: const Text(
+                "Supprimer",
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         );
@@ -304,13 +293,17 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
               if (isFermetureRefectoire)
                 ListTile(
                   leading: const Icon(Icons.no_food, color: Colors.orange),
-                  title: Text(refus != null && refus.isNotEmpty
-                      ? "${refus.split('; ').length.toString()} - Refus"
-                      : "0 - Refus"),
+                  title: Text(
+                    refus != null && refus.isNotEmpty
+                        ? "${refus.split('; ').length.toString()} - Refus"
+                        : "0 - Refus",
+                  ),
                   onTap: () {
                     Navigator.pop(context); // Ferme le BottomSheet
                     _showRefusRepasDialog(
-                        id, refus ?? ""); // Appelle le dialogue
+                      id,
+                      refus ?? "",
+                    ); // Appelle le dialogue
                   },
                 ),
               ListTile(
@@ -344,132 +337,301 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
   void _showEditMouvementDialog(int id, String description) {
     // Implémentez la logique pour afficher le dialogue de modification ici
     _logger.i(
-        "Modifier le mouvement avec l'ID: $id et la description: $description");
+      "Modifier le mouvement avec l'ID: $id et la description: $description",
+    );
+  }
+
+  // Fonction pour générer un PDF contenant les données
+  Future<void> _generatePdf() async {
+    final pdf = pw.Document();
+
+    // Ajouter une page au PDF
+    pdf.addPage(
+      pw.Page(
+        build: (pw.Context context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                "Liste des Événements et Mouvements",
+                style: pw.TextStyle(
+                  fontSize: 12,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                "Date: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}",
+              ),
+              pw.SizedBox(height: 20),
+
+              // Section des événements
+              pw.Text(
+                "Événements",
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Heure"),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Description"),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Commentaire"),
+                      ),
+                    ],
+                  ),
+                  ..._events.map(
+                    (event) => pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(
+                            DateFormat(
+                              'HH:mm',
+                            ).format(DateTime.parse(event['heure'])),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(event['description']),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(event['commentaire'] ?? ''),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              pw.SizedBox(height: 20),
+
+              // Section des mouvements
+              pw.Text(
+                "Mouvements",
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+              pw.Table(
+                border: pw.TableBorder.all(),
+                children: [
+                  pw.TableRow(
+                    children: [
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Heure"),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Description"),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Refus"),
+                      ),
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Text("Commentaire"),
+                      ),
+                    ],
+                  ),
+                  ...mouvements.map(
+                    (mouvement) => pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(
+                            DateFormat(
+                              'HH:mm',
+                            ).format(DateTime.parse(mouvement['heure'])),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(mouvement['type']),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(mouvement['refus'] ?? ''),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(4),
+                          child: pw.Text(mouvement['commentaire'] ?? ''),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // Imprimer le PDF
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    _logger.i("Mouvements à afficher : $mouvements");
     return Scaffold(
-      appBar: AppBar(title: const Text("Main Courante")),
-      body: getSortedEvents().isEmpty
-          ? const Center(child: Text("Aucun événement enregistré."))
-          : ListView.builder(
-              itemCount: getSortedEvents().length,
-              itemBuilder: (context, index) {
-                final event = getSortedEvents()[index];
-                final bool isFermetureRefectoire = event['description'] ==
-                    "Fermeture du refectoire sous surveillance policière";
+      appBar: AppBar(
+        title: const Text("Main Courante"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.print), // Icône d'impression
+            onPressed: _generatePdf, // Appelle la fonction pour générer le PDF
+            tooltip: "Imprimer la page",
+          ),
+        ],
+      ),
+      body:
+          getSortedEvents().isEmpty
+              ? const Center(child: Text("Aucun événement enregistré."))
+              : ListView.builder(
+                itemCount: getSortedEvents().length,
+                itemBuilder: (context, index) {
+                  final event = getSortedEvents()[index];
+                  final bool isFermetureRefectoire =
+                      event['description'] ==
+                      "Fermeture du refectoire sous surveillance policière";
 
-                return Card(
-                  margin:
-                      const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                event['description'],
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            if (event['type'] == 'mouvement')
-                              IconButton(
-                                icon: const Icon(Icons.more_vert),
-                                onPressed: () {
-                                  _showMouvementOptions(
-                                    event['id'],
-                                    event['description'],
-                                    refus: event['refus'],
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                        Text(
-                            "Heure: ${DateFormat('HH:mm').format(event['heure'])}",
-                            style: const TextStyle(color: Colors.grey)),
-                        if (isFermetureRefectoire &&
-                            event['refus'] != null &&
-                            event['refus'].isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "${event['refus'].split('; ').length} - Refus:",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                ),
-                                Text(
-                                  event['refus'],
-                                  style: const TextStyle(color: Colors.red),
-                                ),
-                              ],
-                            ),
-                          ),
-                        if (event['type'] == 'mouvement' &&
-                            event['commentaire'] != null &&
-                            event['commentaire'].isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              "Commentaire: ${event['commentaire']}",
-                              style:
-                                  const TextStyle(fontStyle: FontStyle.italic),
-                            ),
-                          ),
-                        if (event['type'] == 'event')
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 5,
+                      horizontal: 10,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Row(
                             children: [
-                              Checkbox(
-                                value: event['paquetage'] == 1,
-                                onChanged: (value) {
-                                  updateEvent(
-                                      event['id'], 'paquetage', value! ? 1 : 0);
-                                },
+                              Expanded(
+                                child: Text(
+                                  event['description'],
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              const Text("Paquetage"),
-                              Checkbox(
-                                value: event['matelas'] == 1,
-                                onChanged: (value) {
-                                  updateEvent(
-                                      event['id'], 'matelas', value! ? 1 : 0);
-                                },
-                              ),
-                              const Text("Matelas"),
-                              Checkbox(
-                                value: event['repas'] == 1,
-                                onChanged: (value) {
-                                  updateEvent(
-                                      event['id'], 'repas', value! ? 1 : 0);
-                                },
-                              ),
-                              const Text("Repas"),
+                              if (event['type'] == 'mouvement')
+                                IconButton(
+                                  icon: const Icon(Icons.more_vert),
+                                  onPressed: () {
+                                    _showMouvementOptions(
+                                      event['id'],
+                                      event['description'],
+                                      refus: event['refus'],
+                                    );
+                                  },
+                                ),
                             ],
                           ),
-                        if (event['type'] == 'event')
-                          TextField(
-                            decoration:
-                                const InputDecoration(labelText: "Commentaire"),
-                            onSubmitted: (value) {
-                              updateEvent(event['id'], 'commentaire', value);
-                            },
+                          Text(
+                            "Heure: ${DateFormat('HH:mm').format(event['heure'])}",
+                            style: const TextStyle(color: Colors.grey),
                           ),
-                      ],
+                          if (isFermetureRefectoire &&
+                              event['refus'] != null &&
+                              event['refus'].isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "${event['refus'].split('; ').length} - Refus:",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                  Text(
+                                    event['refus'],
+                                    style: const TextStyle(color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (event['type'] == 'mouvement' &&
+                              event['commentaire'] != null &&
+                              event['commentaire'].isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: Text(
+                                "Commentaire: ${event['commentaire']}",
+                                style: const TextStyle(
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          if (event['type'] == 'event')
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: event['paquetage'] == 1,
+                                  onChanged: (value) {
+                                    updateEvent(
+                                      event['id'],
+                                      'paquetage',
+                                      value! ? 1 : 0,
+                                    );
+                                  },
+                                ),
+                                const Text("Paquetage"),
+                                Checkbox(
+                                  value: event['matelas'] == 1,
+                                  onChanged: (value) {
+                                    updateEvent(
+                                      event['id'],
+                                      'matelas',
+                                      value! ? 1 : 0,
+                                    );
+                                  },
+                                ),
+                                const Text("Matelas"),
+                                Checkbox(
+                                  value: event['repas'] == 1,
+                                  onChanged: (value) {
+                                    updateEvent(
+                                      event['id'],
+                                      'repas',
+                                      value! ? 1 : 0,
+                                    );
+                                  },
+                                ),
+                                const Text("Repas"),
+                              ],
+                            ),
+                          if (event['type'] == 'event')
+                            TextField(
+                              decoration: const InputDecoration(
+                                labelText: "Commentaire",
+                              ),
+                              onSubmitted: (value) {
+                                updateEvent(event['id'], 'commentaire', value);
+                              },
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -529,127 +691,4 @@ class MainCouranteScreenState extends State<MainCouranteScreen> {
       ),
     );
   }
-  /*
-  void _handleDepart(String type) async {
-    final dbHelper = DatabaseHelper.instance;
-
-    // Étape 1 : Sélectionner les départs
-    List<Map<String, dynamic>> selectedDepartures = [];
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: Text("Sélectionner les départs ($type)"),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: effectifs.length,
-                  itemBuilder: (context, index) {
-                    final effectif = effectifs[index];
-                    final isSelected = selectedDepartures.contains(effectif);
-
-                    return CheckboxListTile(
-                      title:
-                          Text("${effectif['matricule']} - ${effectif['nom']}"),
-                      value: isSelected,
-                      onChanged: (bool? value) {
-                        setStateDialog(() {
-                          if (value == true) {
-                            selectedDepartures.add(effectif);
-                          } else {
-                            selectedDepartures.remove(effectif);
-                          }
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Annuler"),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Suivant"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    if (selectedDepartures.isEmpty) return;
-
-    // Étape 2 : Gérer les refus
-    List<Map<String, dynamic>> selectedRefus = [];
-    await showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return AlertDialog(
-              title: const Text("Sélectionner les refus"),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: selectedDepartures.length,
-                  itemBuilder: (context, index) {
-                    final departure = selectedDepartures[index];
-                    final isRefused = selectedRefus.contains(departure);
-
-                    return CheckboxListTile(
-                      title: Text(
-                          "${departure['matricule']} - ${departure['nom']}"),
-                      value: isRefused,
-                      onChanged: (bool? value) {
-                        setStateDialog(() {
-                          if (value == true) {
-                            selectedRefus.add(departure);
-                          } else {
-                            selectedRefus.remove(departure);
-                          }
-                        });
-                      },
-                    );
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Annuler"),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Terminer"),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    // Étape 3 : Ajouter les départs et refus dans la base de données
-    String refusString = selectedRefus
-        .map((refus) => "${refus['matricule']} - ${refus['nom']}")
-        .join("; ");
-
-    String description = "$type : ${selectedDepartures.length} départ(s)";
-    await dbHelper.addMouvement(description);
-
-    if (refusString.isNotEmpty) {
-      await dbHelper.addMouvement("Refus : $refusString");
-    }
-
-    // Recharger les mouvements
-    _loadMouvements();
-  }*/
 }
